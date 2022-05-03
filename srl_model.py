@@ -5,9 +5,8 @@ import math
 import numpy as np
 import torch
 from torch import nn
-from modules import BertModel, ZenModel, BertTokenizer, Biaffine, MLP, CRF
+from modules import BertModel, BertTokenizer, Biaffine, MLP, CRF
 from transformers_xlnet import XLNetModel, XLNetTokenizer
-from util import ZenNgramDict
 from srl_helper import save_json, load_json, get_pos_label_list, get_syn_label_list
 import subprocess
 import os
@@ -124,15 +123,11 @@ class SRTagger(nn.Module):
             'keys_dict': keys_dict,
             'keys_freq_dict': keys_freq_dict
         }
-        
-        if hpara['use_zen']:
-            raise ValueError()
+
 
         self.tokenizer = None
         self.bert = None
         self.xlnet = None
-        self.zen = None
-        self.zen_ngram_dict = None
         if self.hpara['use_bert']:
             self.tokenizer = BertTokenizer.from_pretrained(model_path, do_lower_case=self.hpara['do_lower_case'])
             if from_pretrained:
@@ -164,12 +159,6 @@ class SRTagger(nn.Module):
                 self.xlnet = XLNetModel(config)
             hidden_size = self.xlnet.config.hidden_size
             self.dropout = nn.Dropout(self.xlnet.config.summary_last_dropout)
-        elif self.hpara['use_zen']:
-            self.tokenizer = BertTokenizer.from_pretrained(model_path, do_lower_case=self.hpara['do_lower_case'])
-            self.zen_ngram_dict = ZenNgramDict(model_path, tokenizer=self.zen_tokenizer)
-            self.zen = ZenModel.from_pretrained(model_path, cache_dir='')
-            hidden_size = self.zen.config.hidden_size
-            self.dropout = nn.Dropout(self.zen.config.hidden_dropout_prob)
         else:
             raise ValueError()
 
@@ -687,54 +676,12 @@ class SRTagger(nn.Module):
             assert len(p_m) == label_pad_length
             assert len(s_m) == label_pad_length
 
-            if self.zen_ngram_dict is not None:
-                ngram_matches = []
-                #  Filter the ngram segment from 2 to 7 to check whether there is a ngram
-                max_gram_n = self.zen_ngram_dict.max_ngram_len
-
-                for p in range(2, max_gram_n):
-                    for q in range(0, len(tokens) - p + 1):
-                        character_segment = tokens[q:q + p]
-                        # j is the starting position of the ngram
-                        # i is the length of the current ngram
-                        character_segment = tuple(character_segment)
-                        if character_segment in self.zen_ngram_dict.ngram_to_id_dict:
-                            ngram_index = self.zen_ngram_dict.ngram_to_id_dict[character_segment]
-                            ngram_matches.append([ngram_index, q, p, character_segment,
-                                                  self.zen_ngram_dict.ngram_to_freq_dict[character_segment]])
-
-                ngram_matches = sorted(ngram_matches, key=lambda s: s[-1], reverse=True)
-
-                max_ngram_in_seq_proportion = math.ceil((len(tokens) / self.max_seq_length) * self.zen_ngram_dict.max_ngram_in_seq)
-                if len(ngram_matches) > max_ngram_in_seq_proportion:
-                    ngram_matches = ngram_matches[:max_ngram_in_seq_proportion]
-
-                ngram_ids = [ngram[0] for ngram in ngram_matches]
-                ngram_positions = [ngram[1] for ngram in ngram_matches]
-                ngram_lengths = [ngram[2] for ngram in ngram_matches]
-                ngram_tuples = [ngram[3] for ngram in ngram_matches]
-                ngram_seg_ids = [0 if position < (len(tokens) + 2) else 1 for position in ngram_positions]
-
-                ngram_mask_array = np.zeros(self.zen_ngram_dict.max_ngram_in_seq, dtype=np.bool)
-                ngram_mask_array[:len(ngram_ids)] = 1
-
-                # record the masked positions
-                ngram_positions_matrix = np.zeros(shape=(seq_pad_length, self.zen_ngram_dict.max_ngram_in_seq), dtype=np.int32)
-                for i in range(len(ngram_ids)):
-                    ngram_positions_matrix[ngram_positions[i]:ngram_positions[i] + ngram_lengths[i], i] = 1.0
-
-                # Zero-pad up to the max ngram in seq length.
-                padding = [0] * (self.zen_ngram_dict.max_ngram_in_seq - len(ngram_ids))
-                ngram_ids += padding
-                ngram_lengths += padding
-                ngram_seg_ids += padding
-            else:
-                ngram_ids = None
-                ngram_positions_matrix = None
-                ngram_lengths = None
-                ngram_tuples = None
-                ngram_seg_ids = None
-                ngram_mask_array = None
+            ngram_ids = None
+            ngram_positions_matrix = None
+            ngram_lengths = None
+            ngram_tuples = None
+            ngram_seg_ids = None
+            ngram_mask_array = None
 
             features.append(
                 InputFeatures(input_ids=input_ids,
@@ -836,19 +783,8 @@ class SRTagger(nn.Module):
         syn_matrix = all_syn_matrix.to(device)
         pos_mask_matrix = all_pos_mask_matrix.to(device)
         syn_mask_matrix = all_syn_mask_matrix.to(device)
-
-        if self.zen is not None:
-            all_ngram_ids = torch.tensor([f.ngram_ids for f in feature], dtype=torch.long)
-            all_ngram_positions = torch.tensor([f.ngram_positions for f in feature], dtype=torch.long)
-            # all_ngram_lengths = torch.tensor([f.ngram_lengths for f in train_features], dtype=torch.long)
-            # all_ngram_seg_ids = torch.tensor([f.ngram_seg_ids for f in train_features], dtype=torch.long)
-            # all_ngram_masks = torch.tensor([f.ngram_masks for f in train_features], dtype=torch.long)
-
-            ngram_ids = all_ngram_ids.to(device)
-            ngram_positions = all_ngram_positions.to(device)
-        else:
-            ngram_ids = None
-            ngram_positions = None
+        ngram_ids = None
+        ngram_positions = None
 
         return input_ids, input_mask, l_mask, eval_mask, all_verb_idx, label_ids, \
                ngram_ids, ngram_positions, segment_ids, valid_ids, dep_key_list, dep_adj_matrix, dep_type_matrix, \

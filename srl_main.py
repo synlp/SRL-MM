@@ -24,8 +24,6 @@ import time
 
 def train(args):
 
-    if args.use_bert and args.use_zen:
-        raise ValueError('We cannot use both BERT and ZEN')
 
     if not os.path.exists('./logs'):
         os.mkdir('./logs')
@@ -497,9 +495,6 @@ def main():
     parser.add_argument("--use_xlnet",
                         action='store_true',
                         help="Whether to use XLNet.")
-    parser.add_argument("--use_zen",
-                        action='store_true',
-                        help="Whether to use ZEN.")
     parser.add_argument("--bert_model", default=None, type=str,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                         "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
