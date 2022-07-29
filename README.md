@@ -1,6 +1,6 @@
 # SRL-MM
 
-This is the implementation of [Syntax-driven Approach for Semantic Role Labeling]() at LREC2022.
+This is the implementation of [Syntax-driven Approach for Semantic Role Labeling](http://www.lrec-conf.org/proceedings/lrec2022/pdf/2022.lrec-1.772.pdf) at LREC2022.
 
 Please contact us at `yhtian@uw.edu` if you have any questions.
 
@@ -9,7 +9,15 @@ Please contact us at `yhtian@uw.edu` if you have any questions.
 If you use or extend our work, please cite our paper at LREC2022.
 
 ```
-
+@InProceedings{tian-EtAl:2022:LREC2,
+  author = {Tian, Yuanhe and Qin, Han and Xia, Fei and  Song, Yan},
+  title = {Syntax-driven Approach for Semantic Role Labeling},
+  booktitle = {Proceedings of the Language Resources and Evaluation Conference},
+  month = {June},
+  year = {2022},
+  address = {Marseille, France},
+  pages = {7129--7139},
+}
 ```
 
 ## Requirements
